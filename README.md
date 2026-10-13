@@ -63,3 +63,25 @@ Documentación:
 - https://firebase.google.com/docs/database/web/read-and-write
 - https://firebase.google.com/docs/database/web/offline-capabilities
 - https://firebase.google.com/docs/auth/web/anonymous-auth
+
+## GitHub Pages
+La publicación automática está en `.github/workflows/pages.yml`.
+En Settings → Pages selecciona **GitHub Actions** como Source.
+Cada push a main compila, verifica y publica el sitio:
+https://elkin2004olmedoch-dotcom.github.io/GOGOGOGOGO/
+
+En Settings → Secrets and variables → Actions agrega estos secretos:
+- VITE_GOOGLE_MAPS_API_KEY
+- VITE_FIREBASE_API_KEY
+
+Agrega estas variables:
+- VITE_FIREBASE_AUTH_DOMAIN
+- VITE_FIREBASE_DATABASE_URL
+- VITE_FIREBASE_PROJECT_ID
+- VITE_FIREBASE_APP_ID
+
+Configura la clave de Maps para permitir `https://elkin2004olmedoch-dotcom.github.io/*`
+y restringirla a Maps JavaScript API. Las claves de SDK web se incorporan al
+JavaScript público; las restricciones y las reglas de Firebase protegen el acceso.
+Después de cambiar secretos o variables, vuelve a ejecutar el workflow Publish GPS.
+GitHub Pages proporciona HTTPS, pero no crea las claves de Google ni una base Firebase.

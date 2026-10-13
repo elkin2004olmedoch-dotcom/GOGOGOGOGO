@@ -8,7 +8,8 @@ function getRoom() {
   const url = new URL(window.location.href)
   const existing = url.searchParams.get('room')
   if (validRoom(existing ?? '')) return existing
-  const room = crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  const room = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('')
   url.searchParams.set('room', room)
   window.history.replaceState(null, '', url)
   return room

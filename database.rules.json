@@ -7,7 +7,7 @@
         ".read": "auth != null && $room.matches(/^[a-zA-Z0-9-]{20,80}$/)",
         "devices": {
           "$device": {
-            ".write": "auth != null && $room.matches(/^[a-zA-Z0-9-]{20,80}$/) && ((!data.exists() && newData.child('owner').val() === auth.uid) || data.child('owner').val() === auth.uid)",
+            ".write": "auth != null && $room.matches(/^[a-zA-Z0-9-]{20,80}$/) && ((!data.exists() && (!newData.exists() || newData.child('owner').val() === auth.uid)) || data.child('owner').val() === auth.uid)",
             ".validate": "newData.hasChildren(['owner','name','lat','lng','accuracy','speed','updatedAt','color']) && newData.child('owner').val() === auth.uid",
             "owner": {
               ".validate": "newData.isString() && newData.val() === auth.uid"
@@ -62,3 +62,4 @@
     }
   }
 }
+

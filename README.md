@@ -94,3 +94,5 @@ y restringirla a Maps JavaScript API. Las claves de SDK web se incorporan al
 JavaScript público; las restricciones y las reglas de Firebase protegen el acceso.
 Después de cambiar secretos o variables, vuelve a ejecutar el workflow Publish GPS.
 GitHub Pages proporciona HTTPS, pero no crea las claves de Google ni una base Firebase.
+
+La clave de Maps del navegador puede cargarse desde `public/maps-config.js` cuando no hay un secreto de Actions configurado. Este archivo se sirve públicamente, igual que cualquier clave de Maps usada en JavaScript. Restríngela a Maps JavaScript API y a `https://elkin2004olmedoch-dotcom.github.io/*`; no uses este archivo para credenciales privadas ni claves de cuentas de servicio.

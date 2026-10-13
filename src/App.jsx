@@ -49,7 +49,9 @@ function MapOverlays({ devices, selected, follow, view, centerRequest }) {
 }
 export default function App() {
   const isPhone = window.location.pathname.endsWith('/celular.html')
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  const environmentKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  const apiKey = environmentKey && !environmentKey.startsWith('tu_')
+    ? environmentKey : window.PUCE_CONFIG?.googleMapsApiKey
   const [room] = useState(getRoom)
   const phoneUrl = new URL('celular.html', window.location.href)
   phoneUrl.searchParams.set('room', room)

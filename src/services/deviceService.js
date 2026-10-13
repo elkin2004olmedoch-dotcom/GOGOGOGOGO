@@ -1,16 +1,19 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 import { getDatabase, onValue, onDisconnect, ref, set, remove } from 'firebase/database'
-import { normalizeDevices, validPosition } from '../data/campus'
+import { normalizeDevices } from '../data/campus'
+import { startDeviceGps } from './gpsService'
 
+const runtime = window.PUCE_CONFIG?.firebase ?? {}
+const configuredValue = (value, fallback) => value && !value.startsWith('tu') ? value : fallback
 const config = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: configuredValue(import.meta.env.VITE_FIREBASE_API_KEY, runtime.apiKey),
+  authDomain: configuredValue(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, runtime.authDomain),
+  databaseURL: configuredValue(import.meta.env.VITE_FIREBASE_DATABASE_URL, runtime.databaseURL),
+  projectId: configuredValue(import.meta.env.VITE_FIREBASE_PROJECT_ID, runtime.projectId),
+  appId: configuredValue(import.meta.env.VITE_FIREBASE_APP_ID, runtime.appId),
 }
-export const hasFirebaseConfig = Object.values(config).every(v => v && !v.startsWith('tu'))
+export const hasFirebaseConfig = Object.values(config).every(Boolean)
 const app = hasFirebaseConfig ? (getApps().length ? getApp() : initializeApp(config)) : null
 const database = app ? getDatabase(app) : null
 let loginPromise
@@ -30,7 +33,7 @@ export function subscribeToDevices(room, onDevices, onStatus) {
   let unsubscribe = () => {}
   onDevices([])
   if (!hasFirebaseConfig) {
-    onStatus('Firebase sin configurar')
+    onStatus('Firebase sin configurar: el monitor todavía no recibe ubicaciones.')
     return unsubscribe
   }
   if (!validRoom(room)) {
@@ -54,88 +57,98 @@ export async function startGpsSharing({ room, name, signal, onPosition, onStatus
   if (!validRoom(room)) throw new Error('Enlace de sala inválido')
   if (!window.isSecureContext) throw new Error('El GPS del celular necesita HTTPS.')
   if (!navigator.geolocation) throw new Error('Este navegador no ofrece ubicación.')
-  const user = await authenticate()
   if (signal.aborted) return () => {}
-  const id = user.uid + '-' + crypto.randomUUID()
-  const target = ref(database, 'rooms/' + room + '/devices/' + id)
+  const id = crypto.randomUUID()
   let active = true
-  let watch = null
+  let stopGps = () => {}
   let timer = null
   let latest = null
-  let trail = []
   let lastSent = 0
   let publishing = false
   let pending = Promise.resolve()
-  let disconnect = onDisconnect(target)
+  let target = null
+  let disconnect = null
+  let owner = null
   let unsubscribeConnection = () => {}
   let connected = false
+  let cloudStatus = hasFirebaseConfig ? 'conectando Firebase…' : 'solo en este celular; falta configurar Firebase para el monitor'
+  const report = () => {
+    if (active) onStatus((latest ? 'GPS activo · ' : 'Esperando GPS · ') + cloudStatus)
+  }
   function cleanup() {
     if (!active) return
     active = false
-    if (watch !== null) navigator.geolocation.clearWatch(watch)
+    stopGps()
     if (timer !== null) window.clearInterval(timer)
     unsubscribeConnection()
     signal.removeEventListener('abort', cleanup)
-    // Queue removal after any in-flight write so stopping never re-creates a marker.
-    pending = pending.catch(() => {}).then(async () => {
-      await remove(target)
-      await disconnect.cancel()
-    }).catch(error => onStatus('No se pudo borrar la última ubicación: ' + error.message))
+    if (target) {
+      pending = pending.catch(() => {}).then(async () => {
+        await remove(target)
+        await disconnect?.cancel()
+      }).catch(() => {})
+    }
   }
   signal.addEventListener('abort', cleanup, { once: true })
-  try {
-    await disconnect.remove()
-    if (signal.aborted || !active) { cleanup(); return cleanup }
-  } catch (error) { cleanup(); throw error }
   function publish() {
-    if (!active || !connected || !latest || publishing || Date.now() - lastSent < 1000) return
+    if (!active || !connected || !target || !latest || publishing || Date.now() - lastSent < 1000) return
     lastSent = Date.now()
     publishing = true
-    const payload = { ...latest, owner: user.uid, name: name.trim().slice(0, 60) || 'Mi celular',
-      color: '#2563eb', trail }
+    const { id: localId, ...reading } = latest
+    void localId
+    const payload = { ...reading, owner }
     pending = pending.catch(() => {}).then(async () => {
       if (!active || !connected) return
       await set(target, payload)
-      if (active) onStatus('Compartiendo ubicación')
-    }).catch(error => { if (active) onStatus('Error al enviar GPS: ' + error.message) })
-      .finally(() => { publishing = false })
+      if (active) { cloudStatus = 'enviado a Firebase'; report() }
+    }).catch(error => {
+      if (active) { cloudStatus = 'Firebase no recibe datos: ' + error.message; report() }
+    }).finally(() => { publishing = false })
   }
-  unsubscribeConnection = onValue(ref(database, '.info/connected'), async snapshot => {
-    connected = false
-    if (!active) return
-    if (!snapshot.val()) { onStatus('Sin conexión; esperando red…'); return }
-    try {
-      disconnect = onDisconnect(target)
-      await disconnect.remove()
+  report()
+  // Starting GPS must never wait for login, rules, network or database setup.
+  try {
+    stopGps = startDeviceGps({
+      geolocation: navigator.geolocation, id,
+      name: name.trim().slice(0, 60) || 'Mi celular',
+      onPosition: point => {
+        if (!active) return
+        latest = point
+        onPosition(point)
+        report()
+        publish()
+      },
+      onError: error => {
+        if (error.code === 1) {
+          cleanup()
+          onStatus('Permiso denegado. Habilita ubicación y vuelve a iniciar.')
+        } else onStatus('Esperando señal GPS: ' + error.message)
+      },
+    })
+  } catch (error) { cleanup(); throw error }
+  if (hasFirebaseConfig) {
+    timer = window.setInterval(publish, 1000)
+    void authenticate().then(user => {
       if (!active) return
-      connected = true
-      onStatus(latest ? 'Compartiendo ubicación' : 'Esperando señal GPS…')
-      publish()
-    } catch (error) { if (active) onStatus('Error de conexión: ' + error.message) }
-  })
-  watch = navigator.geolocation.watchPosition(fix => {
-    if (!active) return
-    const point = { lat: fix.coords.latitude, lng: fix.coords.longitude }
-    if (!validPosition(point)) return
-    latest = { ...point, accuracy: fix.coords.accuracy,
-      speed: fix.coords.speed ?? 0, heading: fix.coords.heading ?? 0,
-      updatedAt: new Date(fix.timestamp).toISOString() }
-    const previous = trail.at(-1)
-    // Avoid connecting the route across long GPS gaps or very inaccurate fixes.
-    if (previous && fix.timestamp - previous.timestamp > 30000) trail = []
-    if (fix.coords.accuracy <= 80 && (!previous || previous.lat !== point.lat || previous.lng !== point.lng)) {
-      trail = [...trail, { ...point, timestamp: fix.timestamp }].slice(-500)
-    }
-    onPosition({ ...latest, id, name, color: '#2563eb', trail })
-    publish()
-  }, error => {
-    if (!active) return
-    if (error.code === 1) {
-      cleanup()
-      onStatus('Permiso denegado. Habilita ubicación y vuelve a iniciar.')
-    } else onStatus('Esperando señal GPS: ' + error.message)
-  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 })
-  timer = window.setInterval(publish, 1000)
-  onStatus('Esperando señal GPS…')
+      owner = user.uid
+      target = ref(database, 'rooms/' + room + '/devices/' + id)
+      unsubscribeConnection = onValue(ref(database, '.info/connected'), async snapshot => {
+        connected = false
+        if (!active) return
+        if (!snapshot.val()) { cloudStatus = 'sin conexión a Firebase'; report(); return }
+        try {
+          disconnect = onDisconnect(target)
+          await disconnect.remove()
+          if (!active) return
+          connected = true
+          cloudStatus = 'Firebase conectado'
+          report()
+          publish()
+        } catch (error) { cloudStatus = 'Firebase no recibe datos: ' + error.message; report() }
+      })
+    }).catch(error => {
+      if (active) { cloudStatus = 'solo local; Firebase: ' + error.message; report() }
+    })
+  }
   return cleanup
 }

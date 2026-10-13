@@ -96,3 +96,5 @@ Después de cambiar secretos o variables, vuelve a ejecutar el workflow Publish 
 GitHub Pages proporciona HTTPS, pero no crea las claves de Google ni una base Firebase.
 
 La clave de Maps del navegador puede cargarse desde `public/maps-config.js` cuando no hay un secreto de Actions configurado. Este archivo se sirve públicamente, igual que cualquier clave de Maps usada en JavaScript. Restríngela a Maps JavaScript API y a `https://elkin2004olmedoch-dotcom.github.io/*`; no uses este archivo para credenciales privadas ni claves de cuentas de servicio.
+
+El GPS del celular funciona de forma local aunque falte Firebase o falle la autenticación. El estado distingue GPS local de envío confirmado a Firebase. El monitor solo recibe ubicaciones cuando Firebase está configurado, Anonymous Authentication está habilitado y las reglas permiten el acceso. Puede añadirse el objeto de configuración del SDK web como `firebase` dentro de `window.PUCE_CONFIG` en `public/maps-config.js`.

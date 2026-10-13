@@ -48,8 +48,13 @@ function MapOverlays({ devices, selected, follow, view, centerRequest }) {
   return null
 }
 export default function App() {
+  const isPhone = window.location.pathname.endsWith('/celular.html')
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
   const [room] = useState(getRoom)
+  const phoneUrl = new URL('celular.html', window.location.href)
+  phoneUrl.searchParams.set('room', room)
+  const monitorUrl = new URL('monitoreo.html', window.location.href)
+  monitorUrl.searchParams.set('room', room)
   const [devices, setDevices] = useState([])
   const [source, setSource] = useState('Conectando…')
   const [gpsStatus, setGpsStatus] = useState('GPS detenido')
@@ -62,7 +67,7 @@ export default function App() {
   const [centerRequest, setCenterRequest] = useState(0)
   const [mapError, setMapError] = useState('')
   const [shareStatus, setShareStatus] = useState('')
-  const [now, setNow] = useState(Date.now())
+  const [now, setNow] = useState(Date.now)
   const controller = useRef(null)
   const stopping = useRef(null)
   useEffect(() => subscribeToDevices(room, setDevices, setSource), [room])
@@ -120,30 +125,33 @@ export default function App() {
   }
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href)
+      await navigator.clipboard.writeText(phoneUrl.href)
       setShareStatus('Enlace copiado. Ábrelo en los otros celulares.')
-    } catch { setShareStatus('Copia el enlace de la barra de direcciones y compártelo.') }
+    } catch { setShareStatus('Abre el enlace Para celular y copia su dirección para compartir la sala.') }
   }
   // Local fix remains visible while Firebase confirms the write.
   const merged = position ? [...devices.filter(d => d.id !== position.id), position] : devices
-  const visible = merged.filter(d => view !== 'campus' || inCampusArea(d))
+  const visible = merged.filter(d => (!isPhone || d.id === position?.id) &&
+    (view !== 'campus' || inCampusArea(d)))
   const selected = visible.find(d => d.id === selectedId)
   const recent = visible.filter(d => isFresh(d, now))
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div><p className="eyebrow">PUCE · Quito</p><h1>Tu recorrido en vivo</h1>
-          <p>Ubicación GPS y recorrido de los celulares de tu sala.</p></div>
+        <div><p className="eyebrow">PUCE · Quito</p><h1>{isPhone ? 'Mi GPS y recorrido' : 'Monitoreo en tiempo real'}</h1>
+          <p>{isPhone ? 'Comparte tu ubicación y mira cómo se dibuja tu recorrido.' : 'Observa las ubicaciones y recorridos de los celulares de tu sala.'}</p></div>
         <div className="topbar-actions">
+          <a className={isPhone ? 'mode-btn active' : 'mode-btn'} href={phoneUrl.href}>Para celular</a>
+          <a className={!isPhone ? 'mode-btn active' : 'mode-btn'} href={monitorUrl.href} target={isPhone ? '_blank' : undefined} rel="noopener noreferrer">Monitoreo</a>
           <button className="mode-btn" onClick={() => { setView('campus'); setFollow(false); setCenterRequest(v => v + 1) }}>Zona PUCE</button>
-          <button className="mode-btn" onClick={() => setView('global')}>Todos los dispositivos</button>
+          <button className="mode-btn" onClick={() => setView('global')}>{isPhone ? 'Ver mi ubicación' : 'Todos los dispositivos'}</button>
           <button className="mode-btn" onClick={copyLink}>Compartir sala</button>
         </div>
       </header>
       {shareStatus && <p role="status">{shareStatus}</p>}
       <main className="layout">
         <aside className="panel devices-panel">
-          <div className="gps-controls">
+          {isPhone ? <div className="gps-controls">
             <label htmlFor="device-name">Nombre de tu celular</label>
             <input id="device-name" maxLength={60} value={name} disabled={tracking}
               onChange={event => setName(event.target.value)} placeholder="Ej. Celular de Elkin" />
@@ -153,11 +161,15 @@ export default function App() {
             <p role="status" aria-live="polite">{gpsStatus}</p>
             {position && <p>Precisión aproximada: ±{Math.round(position.accuracy)} m</p>}
             <p className="helper">Comparte el enlace de esta sala. Cada celular debe abrirlo y activar su GPS. Mantén la página abierta.</p>
-          </div>
+          </div> : <div className="gps-controls">
+            <h2>Conecta los celulares</h2>
+            <p className="helper">Pulsa Compartir sala y envía el enlace a cada celular. En esa página deben activar Compartir mi GPS. Aquí verás sus movimientos sin activar el GPS de esta computadora.</p>
+            <a className="mode-btn" href={phoneUrl.href} target="_blank" rel="noopener noreferrer">Abrir página del celular</a>
+          </div>}
           <div className="panel-header"><span>Dispositivos ({recent.length} con señal reciente)</span></div>
           <p className="helper" role="status">{source}</p>
           {visible.length === 0 ? <p className="empty-state">
-            {view === 'campus' ? 'No hay celulares en la zona aproximada de la PUCE. Prueba Todos los dispositivos.' : 'Todavía no hay ubicaciones. Activa el GPS o comparte la sala.'}
+            {isPhone ? 'Activa Compartir mi GPS para ver tu ubicación y tu recorrido.' : view === 'campus' ? 'No hay celulares en la zona aproximada de la PUCE. Prueba Todos los dispositivos.' : 'Todavía no hay ubicaciones. Comparte la sala con los celulares.'}
           </p> : <ul className="device-list">{visible.map(device => (
             <li key={device.id}><button className={selectedId === device.id ? 'device-card active' : 'device-card'}
               onClick={() => { setSelectedId(device.id); setFollow(true) }}>

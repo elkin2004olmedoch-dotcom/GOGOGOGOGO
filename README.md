@@ -1,5 +1,14 @@
 # GPS PUCE · Quito
 
+## Dos páginas
+- `celular.html`: nombre del celular, iniciar/detener GPS, precisión y mapa de su recorrido propio.
+- `monitoreo.html` (también `index.html`): posiciones y recorridos de todos los celulares de la sala; no captura GPS del monitor.
+
+Desde Monitoreo pulsa **Compartir sala** y envía ese enlace a los celulares.
+Los botones Para celular y Monitoreo conservan el parámetro `room`; abrir las dos
+direcciones por separado sin ese parámetro crea salas diferentes. En el celular,
+Monitoreo se abre en otra pestaña para mantener activa la captura GPS.
+
 React + Google Maps JavaScript API + Firebase Realtime Database. Cada celular obtiene
 su ubicación con el GPS del navegador y publica la última lectura como máximo cada
 1000 ms. Firebase sincroniza marcadores, precisión y recorridos entre los dispositivos

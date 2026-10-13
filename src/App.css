@@ -34,6 +34,8 @@
 }
 
 .mode-btn {
+  text-decoration: none;
+  display: inline-block;
   border: 1px solid rgba(148, 163, 184, 0.4);
   background: rgba(15, 23, 42, 0.7);
   color: #dbeafe;
@@ -204,6 +206,7 @@
 }
 
 .gps-controls { display: grid; gap: 12px; margin-bottom: 24px; }
+.gps-controls h2 { margin: 0; font-size: 1.2rem; }
 .gps-controls p { margin: 0; }
 .gps-controls input { width: 100%; box-sizing: border-box; background: #111d32; color: #f8fafc; border: 1px solid #64748b; border-radius: 10px; padding: 12px; font: inherit; }
 .helper { font-size: 13px; line-height: 1.6; color: #b8c8dc; }

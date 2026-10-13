@@ -37,9 +37,8 @@
               ".validate": "newData.isString() && newData.val().matches(/^#[0-9a-fA-F]{6}$/)"
             },
             "trail": {
-              ".validate": "newData.numChildren() <= 500",
               "$point": {
-                ".validate": "newData.hasChildren(['lat','lng','timestamp'])",
+                ".validate": "newData.hasChildren(['lat','lng','timestamp']) && $point.matches(/^([0-9]|[1-9][0-9]|[1-4][0-9][0-9])$/)",
                 "lat": {
                   ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
                 },
